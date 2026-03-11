@@ -1,92 +1,102 @@
-package bai3;
-
 import java.io.*;
 import java.util.*;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.*;
-import org.apache.hadoop.mapreduce.*;
-import org.apache.hadoop.mapreduce.lib.input.*;
-import org.apache.hadoop.mapreduce.lib.output.*;
 
 public class GenderAnalysis {
+    public static void main(String[] args) throws Exception {
+        Map<String, Map<String, List<Double>>> movieGenderRatings = new HashMap<>();
+        Map<String, String> movies = new HashMap<>();
+        Map<String, String> users = new HashMap<>();
 
-    public static class JoinMapper extends Mapper<Object,Text,Text,Text>{
+        // Đọc danh sách phim
+        readMovies("movies.txt", movies);
 
-        public void map(Object key,Text value,Context context)
-                throws IOException,InterruptedException{
+        // Đọc thông tin user
+        readUsers("users.txt", users);
 
-            String file=((FileSplit)context.getInputSplit()).getPath().getName();
-            String[] f=value.toString().split(",");
+        // Đọc ratings từ 2 file
+        readRatings("ratings_1.txt", users, movies, movieGenderRatings);
+        readRatings("ratings_2.txt", users, movies, movieGenderRatings);
 
-            if(file.contains("ratings") && f.length>=3)
-                context.write(new Text(f[0]),new Text("R:"+f[2]));
+        System.out.println("\n=== KET QUA BAI 3: SO SANH DANH GIA GIUA NAM VA NU ===");
+        System.out.println("------------------------------------------------");
 
-            else if(file.contains("users") && f.length>=2)
-                context.write(new Text(f[0]),new Text("U:"+f[1]));
+        List<String> sortedMovies = new ArrayList<>(movieGenderRatings.keySet());
+        Collections.sort(sortedMovies);
+
+        for (String movieTitle : sortedMovies) {
+            Map<String, List<Double>> genderMap = movieGenderRatings.get(movieTitle);
+
+            List<Double> maleRatings = genderMap.getOrDefault("M", new ArrayList<>());
+            List<Double> femaleRatings = genderMap.getOrDefault("F", new ArrayList<>());
+
+            double maleAvg = calculateAvg(maleRatings);
+            double femaleAvg = calculateAvg(femaleRatings);
+
+            System.out.printf("%s:%n", movieTitle);
+            System.out.printf("  Nam: %.2f (%d ratings)%n", maleAvg, maleRatings.size());
+            System.out.printf("  Nu:  %.2f (%d ratings)%n%n", femaleAvg, femaleRatings.size());
         }
     }
 
-    public static class ReducerJoin extends Reducer<Text,Text,Text,Text>{
+    private static double calculateAvg(List<Double> ratings) {
+        if (ratings.isEmpty()) return 0.0;
+        double sum = 0;
+        for (double r : ratings) sum += r;
+        return sum / ratings.size();
+    }
 
-        public void reduce(Text key,Iterable<Text> values,Context context)
-                throws IOException,InterruptedException{
-
-            String gender=null;
-            List<Float> ratings=new ArrayList<>();
-
-            for(Text v:values){
-                String s=v.toString();
-
-                if(s.startsWith("U:"))
-                    gender=s.substring(2);
-                else
-                    ratings.add(Float.parseFloat(s.substring(2)));
+    private static void readMovies(String filename, Map<String, String> movies) throws Exception {
+        BufferedReader br = new BufferedReader(new FileReader(filename));
+        String line;
+        while ((line = br.readLine()) != null) {
+            String[] fields = line.split(",", 3);
+            if (fields.length >= 2) {
+                String movieId = fields[0].trim();
+                String title = fields[1].trim();
+                movies.put(movieId, title);
             }
-
-            if(gender!=null)
-                for(Float r:ratings)
-                    context.write(new Text(gender),new Text(String.valueOf(r)));
         }
+        br.close();
     }
 
-    public static class AvgReducer extends Reducer<Text,Text,Text,Text>{
-
-        public void reduce(Text key,Iterable<Text> values,Context context)
-                throws IOException,InterruptedException{
-
-            float sum=0;
-            int c=0;
-
-            for(Text v:values){
-                sum+=Float.parseFloat(v.toString());
-                c++;
+    private static void readUsers(String filename, Map<String, String> users) throws Exception {
+        BufferedReader br = new BufferedReader(new FileReader(filename));
+        String line;
+        while ((line = br.readLine()) != null) {
+            String[] fields = line.split(", ");
+            if (fields.length >= 2) {
+                String userId = fields[0].trim();
+                String gender = fields[1].trim();
+                users.put(userId, gender);
             }
-
-            context.write(key,new Text(String.format("%.2f (%d)",sum/c,c)));
         }
+        br.close();
     }
 
-    public static void main(String[] args)throws Exception{
+    private static void readRatings(String filename, Map<String, String> users, 
+                                    Map<String, String> movies,
+                                    Map<String, Map<String, List<Double>>> movieGenderRatings) throws Exception {
+        BufferedReader br = new BufferedReader(new FileReader(filename));
+        String line;
+        while ((line = br.readLine()) != null) {
+            String[] fields = line.split(", ");
+            if (fields.length >= 3) {
+                String userId = fields[0].trim();
+                String movieId = fields[1].trim();
+                double rating = Double.parseDouble(fields[2].trim());
 
-        Configuration conf=new Configuration();
-        Job job=Job.getInstance(conf,"gender");
+                String gender = users.get(userId);
+                String movieTitle = movies.get(movieId);
 
-        job.setJarByClass(GenderAnalysis.class);
+                if (gender != null && movieTitle != null) {
+                    movieGenderRatings.putIfAbsent(movieTitle, new HashMap<>());
+                    Map<String, List<Double>> genderMap = movieGenderRatings.get(movieTitle);
 
-        MultipleInputs.addInputPath(job,new Path(args[0]),
-                TextInputFormat.class,JoinMapper.class);
-
-        MultipleInputs.addInputPath(job,new Path(args[1]),
-                TextInputFormat.class,JoinMapper.class);
-
-        job.setReducerClass(ReducerJoin.class);
-
-        job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(Text.class);
-
-        FileOutputFormat.setOutputPath(job,new Path(args[3]));
-
-        System.exit(job.waitForCompletion(true)?0:1);
+                    genderMap.putIfAbsent(gender, new ArrayList<>());
+                    genderMap.get(gender).add(rating);
+                }
+            }
+        }
+        br.close();
     }
 }
