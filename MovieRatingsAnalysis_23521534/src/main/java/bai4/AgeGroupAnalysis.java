@@ -1,99 +1,111 @@
-package bai4;
-
 import java.io.*;
 import java.util.*;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.*;
-import org.apache.hadoop.mapreduce.*;
-import org.apache.hadoop.mapreduce.lib.input.*;
-import org.apache.hadoop.mapreduce.lib.output.*;
 
 public class AgeGroupAnalysis {
+    private static final String[] AGE_GROUPS = {"0-18", "19-35", "36-50", "50+"};
 
-    public static class JoinMapper extends Mapper<Object,Text,Text,Text>{
+    public static void main(String[] args) throws Exception {
+        Map<String, Map<String, List<Double>>> movieAgeRatings = new HashMap<>();
+        Map<String, String> movies = new HashMap<>();
+        Map<String, Integer> users = new HashMap<>();
 
-        public void map(Object key,Text value,Context context)
-                throws IOException,InterruptedException{
+        // Đọc danh sách phim
+        readMovies("movies.txt", movies);
 
-            String file=((FileSplit)context.getInputSplit()).getPath().getName();
-            String[] f=value.toString().split(",");
+        // Đọc thông tin user
+        readUsers("users.txt", users);
 
-            if(file.contains("ratings") && f.length>=3)
-                context.write(new Text(f[0]),new Text("R:"+f[2]));
+        // Đọc ratings từ 2 file
+        readRatings("ratings_1.txt", users, movies, movieAgeRatings);
+        readRatings("ratings_2.txt", users, movies, movieAgeRatings);
 
-            else if(file.contains("users") && f.length>=3)
-                context.write(new Text(f[0]),new Text("U:"+f[2]));
+        System.out.println("\n=== KET QUA BAI 4: PHAN TICH DANH GIA THEO NHOM TUOI ===");
+        System.out.println("------------------------------------------------");
+
+        List<String> sortedMovies = new ArrayList<>(movieAgeRatings.keySet());
+        Collections.sort(sortedMovies);
+
+        for (String movieTitle : sortedMovies) {
+            System.out.println(movieTitle + ":");
+            Map<String, List<Double>> ageMap = movieAgeRatings.get(movieTitle);
+
+            for (String ageGroup : AGE_GROUPS) {
+                List<Double> ratings = ageMap.getOrDefault(ageGroup, new ArrayList<>());
+                double avg = calculateAvg(ratings);
+                System.out.printf("  %-6s: %.2f (%d ratings)%n", ageGroup, avg, ratings.size());
+            }
+            System.out.println();
         }
     }
 
-    public static class ReducerJoin extends Reducer<Text,Text,Text,Text>{
-
-        public void reduce(Text key,Iterable<Text> values,Context context)
-                throws IOException,InterruptedException{
-
-            int age=-1;
-            List<Float> ratings=new ArrayList<>();
-
-            for(Text v:values){
-
-                String s=v.toString();
-
-                if(s.startsWith("U:"))
-                    age=Integer.parseInt(s.substring(2));
-                else
-                    ratings.add(Float.parseFloat(s.substring(2)));
-            }
-
-            if(age!=-1){
-
-                String g=(age<=18)?"0-18":
-                        (age<=35)?"18-35":
-                        (age<=50)?"35-50":"50+";
-
-                for(Float r:ratings)
-                    context.write(new Text(g),new Text(String.valueOf(r)));
-            }
-        }
+    private static String getAgeGroup(int age) {
+        if (age <= 18) return "0-18";
+        if (age <= 35) return "19-35";
+        if (age <= 50) return "36-50";
+        return "50+";
     }
 
-    public static class AvgReducer extends Reducer<Text,Text,Text,Text>{
-
-        public void reduce(Text key,Iterable<Text> values,Context context)
-                throws IOException,InterruptedException{
-
-            float sum=0;
-            int c=0;
-
-            for(Text v:values){
-                sum+=Float.parseFloat(v.toString());
-                c++;
-            }
-
-            context.write(key,new Text(String.format("%.2f (%d)",sum/c,c)));
-        }
+    private static double calculateAvg(List<Double> ratings) {
+        if (ratings.isEmpty()) return 0.0;
+        double sum = 0;
+        for (double r : ratings) sum += r;
+        return sum / ratings.size();
     }
 
-    public static void main(String[] args)throws Exception{
+    private static void readMovies(String filename, Map<String, String> movies) throws Exception {
+        BufferedReader br = new BufferedReader(new FileReader(filename));
+        String line;
+        while ((line = br.readLine()) != null) {
+            String[] fields = line.split(",", 3);
+            if (fields.length >= 2) {
+                String movieId = fields[0].trim();
+                String title = fields[1].trim();
+                movies.put(movieId, title);
+            }
+        }
+        br.close();
+    }
 
-        Configuration conf=new Configuration();
-        Job job=Job.getInstance(conf,"age");
+    private static void readUsers(String filename, Map<String, Integer> users) throws Exception {
+        BufferedReader br = new BufferedReader(new FileReader(filename));
+        String line;
+        while ((line = br.readLine()) != null) {
+            String[] fields = line.split(", ");
+            if (fields.length >= 3) {
+                String userId = fields[0].trim();
+                int age = Integer.parseInt(fields[2].trim());
+                users.put(userId, age);
+            }
+        }
+        br.close();
+    }
 
-        job.setJarByClass(AgeGroupAnalysis.class);
+    private static void readRatings(String filename, Map<String, Integer> users,
+                                    Map<String, String> movies,
+                                    Map<String, Map<String, List<Double>>> movieAgeRatings) throws Exception {
+        BufferedReader br = new BufferedReader(new FileReader(filename));
+        String line;
+        while ((line = br.readLine()) != null) {
+            String[] fields = line.split(", ");
+            if (fields.length >= 3) {
+                String userId = fields[0].trim();
+                String movieId = fields[1].trim();
+                double rating = Double.parseDouble(fields[2].trim());
 
-        MultipleInputs.addInputPath(job,new Path(args[0]),
-                TextInputFormat.class,JoinMapper.class);
+                Integer age = users.get(userId);
+                String movieTitle = movies.get(movieId);
 
-        MultipleInputs.addInputPath(job,new Path(args[1]),
-                TextInputFormat.class,JoinMapper.class);
+                if (age != null && movieTitle != null) {
+                    String ageGroup = getAgeGroup(age);
 
-        job.setReducerClass(ReducerJoin.class);
+                    movieAgeRatings.putIfAbsent(movieTitle, new HashMap<>());
+                    Map<String, List<Double>> ageMap = movieAgeRatings.get(movieTitle);
 
-        job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(Text.class);
-
-        FileOutputFormat.setOutputPath(job,new Path(args[3]));
-
-        System.exit(job.waitForCompletion(true)?0:1);
+                    ageMap.putIfAbsent(ageGroup, new ArrayList<>());
+                    ageMap.get(ageGroup).add(rating);
+                }
+            }
+        }
+        br.close();
     }
 }
