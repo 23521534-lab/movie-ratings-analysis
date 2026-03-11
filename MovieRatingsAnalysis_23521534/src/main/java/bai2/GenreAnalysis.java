@@ -1,82 +1,69 @@
-package bai2;
-
 import java.io.*;
 import java.util.*;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.*;
-import org.apache.hadoop.mapreduce.*;
-import org.apache.hadoop.mapreduce.lib.input.*;
-import org.apache.hadoop.mapreduce.lib.output.*;
 
 public class GenreAnalysis {
+    public static void main(String[] args) throws Exception {
+        Map<String, List<Double>> genreRatings = new HashMap<>();
+        Map<String, String> movieGenres = new HashMap<>();
 
-    static Map<String,String> movieGenres = new HashMap<>();
+        // Đọc thể loại phim
+        readMovies("movies.txt", movieGenres);
 
-    public static class RatingMapper extends Mapper<Object,Text,Text,FloatWritable>{
+        // Đọc ratings từ 2 file
+        readRatings("ratings_1.txt", movieGenres, genreRatings);
+        readRatings("ratings_2.txt", movieGenres, genreRatings);
 
-        protected void setup(Context context)throws IOException{
-            Path[] files=context.getLocalCacheFiles();
-            BufferedReader br=new BufferedReader(new FileReader(files[0].toString()));
-            String line;
-            while((line=br.readLine())!=null){
-                String[] p=line.split(",",3);
-                if(p.length>=3)
-                    movieGenres.put(p[0],p[2]);
-            }
-            br.close();
-        }
+        System.out.println("\n=== KET QUA BAI 2: DIEM TRUNG BINH THEO THE LOAI ===");
+        System.out.println("------------------------------------------------");
 
-        public void map(Object key,Text value,Context context)
-                throws IOException,InterruptedException{
+        List<String> sortedGenres = new ArrayList<>(genreRatings.keySet());
+        Collections.sort(sortedGenres);
 
-            String[] f=value.toString().split(",");
-            if(f.length>=3){
+        for (String genre : sortedGenres) {
+            List<Double> list = genreRatings.get(genre);
+            int count = list.size();
+            double sum = 0;
+            for (double r : list) sum += r;
+            double avg = sum / count;
 
-                String genres=movieGenres.get(f[1]);
-                float rating=Float.parseFloat(f[2]);
-
-                if(genres!=null)
-                    for(String g:genres.split("\\|"))
-                        context.write(new Text(g),new FloatWritable(rating));
-            }
+            System.out.printf("%-15s: %.2f (Total: %d ratings)%n", genre, avg, count);
         }
     }
 
-    public static class ReducerAvg extends Reducer<Text,FloatWritable,Text,Text>{
-        public void reduce(Text key,Iterable<FloatWritable> values,Context context)
-                throws IOException,InterruptedException{
-
-            float sum=0;
-            int c=0;
-
-            for(FloatWritable v:values){
-                sum+=v.get();
-                c++;
+    private static void readMovies(String filename, Map<String, String> movieGenres) throws Exception {
+        BufferedReader br = new BufferedReader(new FileReader(filename));
+        String line;
+        while ((line = br.readLine()) != null) {
+            String[] fields = line.split(",", 3);
+            if (fields.length >= 3) {
+                String movieId = fields[0].trim();
+                String genres = fields[2].trim();
+                movieGenres.put(movieId, genres);
             }
-
-            context.write(key,new Text(String.format("%.2f (%d)",sum/c,c)));
         }
+        br.close();
     }
 
-    public static void main(String[] args)throws Exception{
+    private static void readRatings(String filename, Map<String, String> movieGenres, 
+                                    Map<String, List<Double>> genreRatings) throws Exception {
+        BufferedReader br = new BufferedReader(new FileReader(filename));
+        String line;
+        while ((line = br.readLine()) != null) {
+            String[] fields = line.split(", ");
+            if (fields.length >= 3) {
+                String movieId = fields[1].trim();
+                double rating = Double.parseDouble(fields[2].trim());
 
-        Configuration conf=new Configuration();
-        Job job=Job.getInstance(conf,"genre");
-
-        job.setJarByClass(GenreAnalysis.class);
-
-        job.addCacheFile(new Path(args[1]).toUri());
-
-        job.setMapperClass(RatingMapper.class);
-        job.setReducerClass(ReducerAvg.class);
-
-        job.setOutputKeyClass(Text.class);
-        job.setOutputValueClass(FloatWritable.class);
-
-        FileInputFormat.addInputPath(job,new Path(args[0]));
-        FileOutputFormat.setOutputPath(job,new Path(args[2]));
-
-        System.exit(job.waitForCompletion(true)?0:1);
+                String genres = movieGenres.get(movieId);
+                if (genres != null) {
+                    for (String genre : genres.split("\\|")) {
+                        genre = genre.trim();
+                        genreRatings.putIfAbsent(genre, new ArrayList<>());
+                        genreRatings.get(genre).add(rating);
+                    }
+                }
+            }
+        }
+        br.close();
     }
 }
