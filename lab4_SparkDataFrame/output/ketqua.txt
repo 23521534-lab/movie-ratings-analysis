@@ -1,0 +1,96 @@
+Total Orders: 99441
+Total Customers: 99442
+Total Sellers: 3095
++----------------+-----+
+|Customer_Country|count|
++----------------+-----+
+|         Germany|41754|
+|          France|12848|
+|     Netherlands|11629|
+|         Belgium| 5464|
+|         Austria| 5043|
+|     Switzerland| 3640|
+|  United Kingdom| 3382|
+|          Poland| 2139|
+|         Czechia| 2034|
+|           Italy| 2025|
+|           Spain| 1651|
+|        Portugal| 1336|
+|          Sweden|  975|
+|         Denmark|  905|
+|          Serbia|  746|
+|          Norway|  716|
+|        Slovakia|  534|
+|        Slovenia|  495|
+|          Turkey|  485|
+|          Greece|  412|
++----------------+-----+
+only showing top 20 rows
++----+-----+-----+
+|year|month|count|
++----+-----+-----+
+|2022|   12|    1|
+|2022|   10|  324|
+|2022|    9|    4|
+|2023|   12| 5673|
+|2023|   11| 7544|
+|2023|   10| 4631|
+|2023|    9| 4285|
+|2023|    8| 4331|
+|2023|    7| 4026|
+|2023|    6| 3245|
+|2023|    5| 3700|
+|2023|    4| 2404|
+|2023|    3| 2682|
+|2023|    2| 1780|
+|2023|    1|  800|
+|2024|   10|    4|
+|2024|    9|   16|
+|2024|    8| 6512|
+|2024|    7| 6292|
+|2024|    6| 6167|
++----+-----+-----+
+only showing top 20 rows
+Average Review Score:
++----------------+
+|Avg_Review_Score|
++----------------+
+|            4.09|
++----------------+
+
+Count by Review Score:
++------------+-----+
+|Review_Score|count|
++------------+-----+
+|           1|11424|
+|           2| 3151|
+|           3| 8179|
+|           4|19141|
+|           5|57328|
++------------+-----+
+
++---------------------+-------------+
+|Product_Category_Name|Total_Revenue|
++---------------------+-------------+
+|        Health_Beauty|    885191.12|
+|        Watches_Gifts|    771986.75|
+|       Bed_Bath_Table|     650794.7|
+|       Sports_Leisure|    621999.34|
+| Computers_Accesso...|    594771.04|
+|           Housewares|    491576.96|
+|      Furniture_Decor|    476466.13|
+|                 Auto|    404210.57|
+|                 Baby|    299052.56|
+|           Cool_Stuff|    273910.05|
+|         Garden_Tools|    259068.32|
+|            Telephony|    217452.13|
+|            Perfumery|    204562.54|
+|                 Toys|    200634.07|
+|     Office_Furniture|    181745.73|
+|           Stationery|    164743.85|
+|             Pet_Shop|    152804.94|
+| Construction_Tool...|    141187.34|
+|          Electronics|    134265.45|
+|  Musical_Instruments|    121476.31|
++---------------------+-------------+
+only showing top 20 rows
